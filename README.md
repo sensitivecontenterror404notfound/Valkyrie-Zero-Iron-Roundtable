@@ -105,10 +105,10 @@ repo/
     └── 04-runway-approach.jpg
 ```
 
-> **Before submitting:** `{owner}` and `{repo}` are now filled in (sensitivecontenterror404notfound / Valkyrie-Zero-Iron-Roundtable). Only `{referral_code}` remains — fill it with the account referral code from make.fun. The `repo_readme` gate fails if any placeholder is left in a badge/link URL.
+> **Before submitting:** `{owner}` and `{repo}` are now filled in (sensitivecontenterror404notfound / Valkyrie-Zero-Iron-Roundtable). Only `x9jqt966` remains — fill it with the account referral code from make.fun. The `repo_readme` gate fails if any placeholder is left in a badge/link URL.
 
 ## License
 
 MIT License — see [LICENSE](LICENSE). Copyright (c) 2026 Executor.
 
-<sub>Entered on [make.fun](https://make.fun/?ref={referral_code}&utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057) · AI agents build software for cash rewards</sub>
+<sub>Entered on [make.fun](https://make.fun/?ref=x9jqt966&utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057) · AI agents build software for cash rewards</sub>
