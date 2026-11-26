@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Valkyrie Zero: Iron Roundtable — Flight Combat and Extreme Landing</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#06101f;font-family:Consolas,monospace;color:#dff3ff}
+canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+#gl{ z-index:1 } #hud{ z-index:2; pointer-events:none }
+#menu{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(4,12,24,.92),rgba(6,24,44,.85));padding:14px;overflow-y:auto}
+#menu.hide{display:none}
+.panel{width:100%;max-width:980px;max-height:92vh;overflow-y:auto;background:rgba(6,18,36,.94);border:1px solid #2fb9e8;border-radius:12px;padding:20px}
+.wide{grid-column:1/-1}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:5px 18px;font-size:12px;color:#b9d9ec;line-height:1.5}
+.ctl b{display:inline-block;min-width:118px;color:#7ee7ff;font-weight:bold}
+.ctl kbd{background:#0a2438;border:1px solid #2fb9e8;border-radius:4px;padding:1px 6px;font-family:inherit;color:#ffe27a}
+ol.steps{font-size:12px;color:#b9d9ec;line-height:1.65;padding-left:18px}
+ol.steps b{color:#7ee7ff}
+.steps li{margin-bottom:4px}
+h4{font-size:12px;color:#ffd75e;margin:10px 0 4px;letter-spacing:1px}
+h1{font-size:26px;letter-spacing:2px;color:#7ee7ff}
+h1 span{color:#ffd75e}
+.sub{color:#9fc6dd;margin:6px 0 14px;font-size:13px;line-height:1.5}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.card{border:1px solid #256a88;border-radius:8px;padding:10px;background:#081a2e}
+.card h3{font-size:13px;color:#7ee7ff;margin-bottom:6px}
+.card p{font-size:12px;color:#b9d9ec;line-height:1.45}
+.sel{width:100%;margin-top:6px;background:#0a2438;color:#dff3ff;border:1px solid #2fb9e8;border-radius:6px;padding:7px;font-family:inherit}
+#btnLaunch{position:sticky;bottom:0;z-index:2;box-shadow:0 -4px 14px rgba(0,0,0,.55);width:100%;margin-top:14px;padding:14px;font-size:18px;font-weight:bold;letter-spacing:2px;background:#19c37d;color:#04140c;border:0;border-radius:8px;cursor:pointer;font-family:inherit}
+#btnLaunch:hover{background:#2fe396}
+.note{font-size:11px;color:#8fb3c9;margin-top:10px;line-height:1.5}
+#msg{position:fixed;left:50%;top:40px;transform:translateX(-50%);z-index:5;color:#ffe27a;font-size:13px;text-shadow:0 1px 3px #000;pointer-events:none;text-align:center;background:rgba(4,16,28,.55);padding:2px 10px;border-radius:6px;max-width:92vw}
+#touch{position:fixed;inset:auto 0 0 0;z-index:6;display:none;justify-content:space-between;padding:10px;pointer-events:none}
+#touch .col{display:flex;flex-direction:column;gap:8px;pointer-events:auto}
+.tbtn{background:rgba(10,40,64,.75);color:#dff3ff;border:1px solid #2fb9e8;border-radius:8px;padding:12px 14px;font-size:14px;font-family:inherit}
+.tbtn:active{background:#2fb9e8;color:#04140c}
+#debrief{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(2,8,18,.8)}
+#debrief .panel{max-width:560px;text-align:center}
+#debrief h2{font-size:28px;color:#ffd75e;margin-bottom:10px}
+#debrief p{line-height:1.6;color:#cfe8f7;font-size:14px;white-space:pre-line}
+#btnAgain{margin-top:14px;padding:12px 22px;background:#19c37d;border:0;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="hud"></canvas>
+<div id="msg"></div>
+<div id="menu"><div class="panel">
+<h1>VALKYRIE ZERO <span>// IRON ROUNDTABLE</span></h1>
+<div class="sub">Original flight combat and extreme landing simulator. 100% offline, single file, no network. Fly over Valen Bay island airbase, fight, then bring her home on Runway 09.</div>
+<div class="grid">
+<div class="card"><h3>AIRCRAFT</h3><p>Pick your airframe. Each has its own speed, turn, fuel and weapons.</p>
+<select id="selJet" class="sel">
+<option value="valkyrie">ASF-01X Valkyrie — balanced interceptor</option>
+<option value="raptor">F-22X Raptor-S — stealth fighter</option>
+<option value="tomcat">F-14D Tomcat-X — swept-wing interceptor</option>
+<option value="spirit">B-2X Spirit-Zero — flying-wing bomber</option>
+<option value="thunder">A-10C Thunderbolt-II — close support</option>
+<option value="blackbird">SR-71X Blackbird — high-speed recon</option>
+<option value="colossus">AN-225X Colossus-6 — 6-engine heavy lifter</option>
+<option value="viper">AH-64X Viper Gunship — attack helicopter</option>
+<option value="hokum">KA-52X Hokum-B — coaxial attack helicopter</option>
+<option value="blackhawk">UH-60X Blackhawk DAP — armed assault helicopter</option>
+</select></div>
+<div class="card"><h3>OPERATION</h3><p>Three sorties. Dogfight, emergency landing, or a calm tour.</p>
+<select id="selOp" class="sel">
+<option value="1">Operation 01 — Naval &amp; Urban Assault (Galahad Squadron, bombers, warships)</option>
+<option value="2">Operation 02 — Extreme Landing: engine fire, 14% fuel, crosswind</option>
+<option value="3">Operation 03 — Runway 09 Cold Start &amp; City Tour (no enemies)</option>
+</select></div>
+<div class="card"><h3>WEATHER &amp; TIME</h3><p>Weather changes turbulence, wind and visibility. Time changes the sky.</p>
+<select id="selWx" class="sel"><option value="clear">Clear morning</option><option value="windy">Windy afternoon</option><option value="rain">Rain storm</option><option value="storm">Thunderstorm</option><option value="auto">Auto random</option></select>
+<select id="selTime" class="sel"><option value="morning">Morning</option><option value="noon">Noon</option><option value="dusk">Dusk</option><option value="night">Night</option></select></div>
+<div class="card"><h3>CONTROLS — SUMMARY</h3><p>PC game: keyboard + mouse. Full control list is in the guide below — read it before you launch. Mouse: move to steer, click to fire the cannon.</p></div>
+</div>
+<div class="card wide" style="margin-top:12px"><h3>⌨ CONTROLS — EVERY PC KEYBOARD &amp; MOUSE CONTROL</h3>
+<div class="ctl">
+<div><b><kbd>W</kbd> / <kbd>S</kbd></b> Pitch nose down / up (mouse up/down also steers)</div>
+<div><b><kbd>A</kbd> / <kbd>D</kbd></b> Roll / bank left / right</div>
+<div><b><kbd>Q</kbd> / <kbd>E</kbd></b> Rudder left / right</div>
+<div><b><kbd>Shift</kbd> / <kbd>Ctrl</kbd></b> Throttle up / down</div>
+<div><b><kbd>Mouse move</kbd></b> Steer (pitch + roll) — click and drag, or move with pointer lock</div>
+<div><b><kbd>Mouse click</kbd></b> Fire Vulcan cannon (same as <kbd>Space</kbd>)</div>
+<div><b><kbd>Space</kbd></b> Fire Vulcan cannon</div>
+<div><b><kbd>F</kbd></b> Fire MSL missile at locked target</div>
+<div><b><kbd>V</kbd></b> Fire special weapon (XLAA multi-lock / LASM anti-ship)</div>
+<div><b><kbd>T</kbd></b> Next FMS waypoint (lock builds automatically when a bandit is ahead, within 800 m)</div>
+<div><b><kbd>X</kbd></b> Release flares (decoy, 200 carried)</div>
+<div><b><kbd>G</kbd></b> Raise / lower landing gear (only below 250 kt)</div>
+<div><b><kbd>[</kbd> / <kbd>]</kbd></b> Flaps down / up (full flaps: stall speed 24 kt)</div>
+<div><b><kbd>B</kbd></b> Wheel brakes (on the runway)</div>
+<div><b><kbd>R</kbd></b> Thrust reverser (after touchdown)</div>
+<div><b><kbd>1</kbd></b> Cut fuel to engine 2 (emergency fire drill)</div>
+<div><b><kbd>I</kbd></b> Fire Halon extinguisher (after cutting engine 2 fuel)</div>
+<div><b><kbd>C</kbd></b> Change camera (chase / cockpit / external)</div>
+<div><b><kbd>P</kbd></b> Pause / resume</div>
+<div><b><kbd>Esc</kbd></b> Return to this main menu</div>
+</div>
+<p style="font-size:12px;color:#b9d9ec;line-height:1.5;margin-top:8px">Touch controls are secondary only: on a touch screen, THR / PITCH / CANNON / MISSILE / GEAR / FLAPS / CAMERA buttons appear at the bottom. The PC layout above is the full game.</p></div>
+<div class="card wide" style="margin-top:12px"><h3>✈ HOW TO PLAY — STEP BY STEP</h3>
+<h4>TAKEOFF (all operations)</h4>
+<ol class="steps"><li>Hold <b>Shift</b> to raise throttle to 100%.</li><li>At about 150 kt, pull <b>S</b> (or mouse up) gently to lift the nose.</li><li>Press <b>G</b> to raise the gear once you are climbing, then <b>]</b> to raise the flaps.</li></ol>
+<h4>OPERATION 01 — DOGFIGHT</h4>
+<ol class="steps"><li>Fly toward a Galahad bandit — the lock box builds automatically when it is ahead of you within 800 m. Wait for it to reach 100%.</li><li>Fire <b>F</b> (MSL) or <b>Space</b> / mouse click (cannon) when the bandit is in front of you.</li><li>Press <b>V</b> for XLAA: it locks up to 4 targets at once. Press <b>V</b> again to switch to LASM against warships.</li><li>Press <b>X</b> for flares if a bandit is firing at you. Destroy all 5 bandits and both warships, then land on Runway 09.</li></ol>
+<h4>OPERATION 02 — EXTREME LANDING (ENGINE FIRE)</h4>
+<ol class="steps"><li>Engine 2 is on fire and fuel is at 14%. First press <b>1</b> to cut fuel to engine 2, then <b>I</b> to fire the Halon extinguisher — the fire only goes out in that order.</li><li>Line up with Runway 09 (heading 090). Follow the ILS box on the HUD: keep the glideslope needle centred for a 3.3° descent.</li><li>Watch the PAPI lights beside the runway: 4 white = too high, 4 red = too low, 2 red + 2 white = on the glidepath.</li><li>Below 250 kt press <b>G</b> for gear, then <b>[</b> twice for full flaps. Aim for a gentle touchdown: sink rate under 260 ft/min and within 8 m of the centreline for a BUTTER landing, graded S to C.</li></ol>
+<h4>OPERATION 03 — CITY TOUR (FREE FLIGHT)</h4>
+<ol class="steps"><li>No enemies. Follow the FMS waypoints on the HUD: RWY09 → BRDG1 → METRO → NPORT → WCITL → SOVRN.</li><li>The FMS box shows bearing, distance, ETE and cross-track error to the next waypoint.</li><li>Fly over the bridge, downtown Metropolis and the West Citadel, then return and land on Runway 09 whenever you like.</li></ol></div>
+<button id="btnLaunch">LAUNCH SORTIE</button>
+<div class="note">PC-first: built and tested for desktop Chrome at desktop resolutions, keyboard + mouse. Muse-authored rebuild, written in this session from the design of the original game. Original art, names and sound only. No external files, no network requests. Touch buttons appear only on small touch screens.</div>
+</div></div>
+<div id="touch"><div class="col">
+<button class="tbtn" data-k="thrUp">THR +</button><button class="tbtn" data-k="thrDn">THR -</button>
+<button class="tbtn" data-k="pitchUp">PITCH UP</button><button class="tbtn" data-k="pitchDn">PITCH DN</button>
+</div><div class="col">
+<button class="tbtn" data-k="fire">CANNON</button><button class="tbtn" data-k="msl">MISSILE</button>
+<button class="tbtn" data-k="gear">GEAR</button><button class="tbtn" data-k="flaps">FLAPS</button>
+<button class="tbtn" data-k="cam">CAMERA</button>
+</div></div>
+<div id="debrief"><div class="panel"><h2 id="dbTitle">SORTIE COMPLETE</h2><p id="dbText"></p><button id="btnAgain">FLY AGAIN</button></div></div>
+<script>
+"use strict";
+/* Valkyrie Zero — Muse rebuild. Original code, written fresh in this session.
+   Systems: flight model + turbulence, navigation/FMS, fuel + engines,
+   ILS/PAPI landing grading, weapons, weather + day cycle, HUD, 10 aircraft. */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const deg=d=>d*Math.PI/180, rad=r=>r*180/Math.PI;
+const rand=(a,b)=>a+Math.random()*(b-a);
+/* ---------- aircraft catalogue: same 10 airframes as v45, my own stats ---------- */
+const JETS={
+ valkyrie:{name:"ASF-01X Valkyrie",hp:100,speed:1.0,turn:1.0,fuel:1.0,msl:60,gun:1.0,heli:false,engines:2},
+ raptor:{name:"F-22X Raptor-S",hp:95,speed:1.2,turn:1.25,fuel:0.9,msl:56,gun:1.0,heli:false,engines:2},
+ tomcat:{name:"F-14D Tomcat-X",hp:110,speed:1.05,turn:0.95,fuel:1.05,msl:64,gun:1.1,heli:false,engines:2},
+ spirit:{name:"B-2X Spirit-Zero",hp:150,speed:0.8,turn:0.7,fuel:1.3,msl:48,gun:0.7,heli:false,engines:4},
+ thunder:{name:"A-10C Thunderbolt-II",hp:130,speed:0.82,turn:0.9,fuel:1.15,msl:52,gun:1.6,heli:false,engines:2},
+ blackbird:{name:"SR-71X Blackbird",hp:85,speed:1.45,turn:0.7,fuel:0.8,msl:36,gun:0.7,heli:false,engines:2},
+ colossus:{name:"AN-225X Colossus-6",hp:260,speed:0.7,turn:0.55,fuel:1.6,msl:40,gun:0.7,heli:false,engines:6},
+ viper:{name:"AH-64X Viper Gunship",hp:90,speed:0.55,turn:1.3,fuel:1.0,msl:36,gun:1.3,heli:true,engines:2},
+ hokum:{name:"KA-52X Hokum-B",hp:95,speed:0.58,turn:1.25,fuel:1.0,msl:36,gun:1.3,heli:true,engines:2},
+ blackhawk:{name:"UH-60X Blackhawk DAP",hp:105,speed:0.6,turn:1.1,fuel:1.1,msl:32,gun:1.1,heli:true,engines:2}};
+/* ---------- weather table: turbulence, wind, visibility ---------- */
+const WX={
+ clear:{turb:0.45,wind:4,gust:1.5,vis:1.0,rain:0,cloud:0.15,label:"Clear"},
+ windy:{turb:1.4,wind:18,gust:6,vis:0.9,rain:0,cloud:0.35,label:"Windy"},
+ rain:{turb:1.9,wind:14,gust:7,vis:0.65,rain:1,cloud:0.7,label:"Rain"},
+ storm:{turb:3.6,wind:26,gust:12,vis:0.45,rain:1,cloud:0.95,label:"Thunderstorm"},
+ gale:{turb:2.35,wind:32,gust:9,vis:0.6,rain:0,cloud:0.5,label:"Gale"},
+ tempest:{turb:3.6,wind:38,gust:14,vis:0.4,rain:1,cloud:1,label:"Tempest"}};
+/* ---------- waypoints: Valen Bay FMS route ---------- */
+const WAYPOINTS=[
+ {id:"RWY09",x:0,y:2,z:0,alt:120},
+ {id:"BRDG1",x:420,y:2,z:-260,alt:400},
+ {id:"METRO",x:760,y:2,z:180,alt:600},
+ {id:"NPORT",x:180,y:2,z:620,alt:500},
+ {id:"WCITL",x:-520,y:2,z:420,alt:550},
+ {id:"SOVRN",x:-820,y:2,z:-420,alt:900}];
+const RWY={x:0,z:0,hdg:90,len:900,wid:46,y:2.15};
+/* ---------- game state ---------- */
+const S={started:false,paused:false,op:1,wx:"clear",time:"morning",jet:"valkyrie",
+ t:0,clock:9.0,score:0,kills:0,msg:"",msgT:0,
+ plane:{x:0,y:60,z:900,hdg:270,pitch:0,roll:0,spd:0,thr:0,alt:60,vs:0,fuel:92,hull:100,gear:false,flaps:0,brake:false,eng2fire:false,eng2cut:false,halon:false},
+ cam:0,lock:0,lockTgt:null,spw:"XLAA",msl:60,flares:200,wp:0,landed:false,graded:false,grade:"",
+ wind:{x:0,z:0},turb:0.45,flash:0,lightning:0};
+let enemies=[],ships=[],missiles=[],tracers=[],rings=[];
+const keys={};
+function say(txt,sec){S.msg=txt;S.msgT=sec||4;$("msg").textContent=txt;}
+/* ---------- audio: synthesised only ---------- */
+let AC=null,osc=null,oscGain=null;
+function audioInit(){try{AC=new (window.AudioContext||window.webkitAudioContext)();osc=AC.createOscillator();oscGain=AC.createGain();osc.type="sawtooth";osc.frequency.value=60;oscGain.gain.value=0.02;osc.connect(oscGain);oscGain.connect(AC.destination);osc.start();}catch(e){}}
+function audioTick(){if(!AC||!osc)return;osc.frequency.value=40+S.plane.thr*1.1+S.plane.spd*0.25;oscGain.gain.value=S.started?0.015+S.plane.thr*0.00012:0;}
+function beep(f,d){if(!AC)return;try{const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=f;g.gain.value=0.08;o.connect(g);g.connect(AC.destination);o.start();g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+d);o.stop(AC.currentTime+d);}catch(e){}}
+
+/* ---------- WebGL2 renderer (own shaders, own mesh builder) ---------- */
+const glc=$("gl"), hudc=$("hud"), hx=hudc.getContext("2d");
+const gl=glc.getContext("webgl2",{antialias:true});
+let glOK=!!gl;
+function resize(){const d=Math.min(devicePixelRatio||1,2);glc.width=innerWidth*d;glc.height=innerHeight*d;hudc.width=innerWidth*d;hudc.height=innerHeight*d;if(gl)gl.viewport(0,0,glc.width,glc.height);}
+addEventListener("resize",resize);resize();
+const VS=`#version 300 es
+in vec3 aP; in vec3 aN; in vec3 aC;
+uniform mat4 uProj,uView,uModel; uniform vec3 uSun;
+out vec3 vN; out vec3 vC; out vec3 vW;
+void main(){vec4 w=uModel*vec4(aP,1.0); vW=w.xyz; vN=mat3(uModel)*aN; vC=aC;
+gl_Position=uProj*uView*w;}`;
+const FS=`#version 300 es
+precision highp float;
+in vec3 vN; in vec3 vC; in vec3 vW;
+uniform vec3 uSun,uCam; uniform float uFog,uTime;
+out vec4 o;
+void main(){vec3 n=normalize(vN); vec3 sun=normalize(uSun);
+float d=max(dot(n,sun),0.0);
+vec3 viewDir=normalize(uCam-vW);
+vec3 refl=reflect(-sun,n);
+float spec=pow(max(dot(refl,viewDir),0.0),28.0)*0.35;
+/* brighter ambient + a little sky light from above, so cloud undersides
+   and shadow sides are soft light grey, never near-black */
+float amb=0.52+0.12*max(n.y,0.0); vec3 col=vC*(amb+0.48*d)+vec3(spec);
+float dist=distance(uCam,vW); float f=1.0-exp(-dist*dist*uFog*uFog*0.0000004);
+vec3 fogCol=vec3(0.62,0.72,0.82); col=mix(col,fogCol,clamp(f,0.0,0.85));
+o=vec4(col,1.0);}`;
+const SKYVS=`#version 300 es
+out vec2 vU; void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2)); vU=p; gl_Position=vec4(p*2.0-1.0,0.0,1.0);}`;
+const SKYFS=`#version 300 es
+precision highp float; in vec2 vU;
+uniform vec3 uZen,uHor,uSunC; uniform vec3 uSunDir; uniform float uFlash,uNight;
+out vec4 o;
+void main(){vec3 d=normalize(vec3(vU*2.0-1.0,0.6));
+float h=clamp(d.y*1.4+0.25,0.0,1.0);
+vec3 col=mix(uHor,uZen,pow(h,0.8));
+float s=max(dot(d,normalize(uSunDir)),0.0);
+col+=uSunC*pow(s,180.0)*1.4+uSunC*pow(s,8.0)*0.25;
+col+=vec3(1.0)*uFlash*0.7; col*= (1.0-uNight*0.55);
+o=vec4(col,1.0);}`;
+function sh(t,src){const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;}
+function prog(vs,fs){const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);return p;}
+let P=null,PS=null;
+if(glOK){try{P=prog(VS,FS);PS=prog(SKYVS,SKYFS);}catch(e){glOK=false;}}
+/* matrix helpers, column-major */
+function mI(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);}
+function mMul(a,b){const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+r]*b[c*4+k];o[c*4+r]=s;}return o;}
+function mPersp(fov,asp,n,f){const t=1/Math.tan(fov/2),o=new Float32Array(16);o[0]=t/asp;o[5]=t;o[10]=(f+n)/(n-f);o[11]=-1;o[14]=2*f*n/(n-f);return o;}
+function mLook(e,c,up){let zx=e[0]-c[0],zy=e[1]-c[1],zz=e[2]-c[2];let l=Math.hypot(zx,zy,zz)||1;zx/=l;zy/=l;zz/=l;
+let xx=up[1]*zz-up[2]*zy,xy=up[2]*zx-up[0]*zz,xz=up[0]*zy-up[1]*zx;l=Math.hypot(xx,xy,xz)||1;xx/=l;xy/=l;xz/=l;
+const yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
+return new Float32Array([xx,yx,zx,0,xy,yy,zy,0,xz,yz,zz,0,-(xx*e[0]+xy*e[1]+xz*e[2]),-(yx*e[0]+yy*e[1]+yz*e[2]),-(zx*e[0]+zy*e[1]+zz*e[2]),1]);}
+function mTrans(x,y,z){const m=mI();m[12]=x;m[13]=y;m[14]=z;return m;}
+function mRotY(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([c,0,-s,0,0,1,0,0,s,0,c,0,0,0,0,1]);}
+function mRotX(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([1,0,0,0,0,c,s,0,0,-s,c,0,0,0,0,1]);}
+function mRotZ(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([c,s,0,0,-s,c,0,0,0,0,1,0,0,0,0,1]);}
+function mScale(x,y,z){const m=mI();m[0]=x;m[5]=y;m[10]=z;return m;}
+/* Smooth mesh builder: no boxes, no hard square blocks.
+   Every shape is a parametric smooth surface — ellipsoid, tapered tube,
+   smooth cone / cylinder, or flat plane — with per-vertex normals, so
+   shading is continuous and nothing looks blocky or pixelated. */
+class Mesh{
+ constructor(){this.d=[];}
+ vtx(p,n,col){this.d.push(p[0],p[1],p[2],n[0],n[1],n[2],col[0],col[1],col[2]);}
+ triS(a,b,c,na,nb,nc,col){this.vtx(a,na,col);this.vtx(b,nb,col);this.vtx(c,nc,col);}
+ tri(a,b,c,col){const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],v=[c[0]-a[0],c[1]-a[1],c[2]-a[2]];
+  let nx=u[1]*v[2]-u[2]*v[1],ny=u[2]*v[0]-u[0]*v[2],nz=u[0]*v[1]-u[1]*v[0];const l=Math.hypot(nx,ny,nz)||1;nx/=l;ny/=l;nz/=l;
+  for(const p of [a,b,c])this.d.push(p[0],p[1],p[2],nx,ny,nz,col[0],col[1],col[2]);}
+ /* flat ground plane, normal straight up */
+ planeY(cx,cy,cz,sx,sz,col){const n=[0,1,0],x0=cx-sx/2,x1=cx+sx/2,z0=cz-sz/2,z1=cz+sz/2;
+  this.triS([x0,cy,z0],[x1,cy,z0],[x1,cy,z1],n,n,n,col);this.triS([x0,cy,z0],[x1,cy,z1],[x0,cy,z1],n,n,n,col);}
+ /* smooth ellipsoid: rounded in every direction */
+ ellipsoid(cx,cy,cz,rx,ry,rz,col,nu=18,nv=12){
+  const pt=(u,v)=>{const th=u*Math.PI*2,ph=v*Math.PI;
+   const x=Math.sin(ph)*Math.cos(th),y=Math.cos(ph),z=Math.sin(ph)*Math.sin(th);
+   let nx=x/rx,ny=y/ry,nz=z/rz;const l=Math.hypot(nx,ny,nz)||1;
+   return {p:[cx+x*rx,cy+y*ry,cz+z*rz],n:[nx/l,ny/l,nz/l]};};
+  for(let i=0;i<nu;i++)for(let j=0;j<nv;j++){
+   const a=pt(i/nu,j/nv),b=pt((i+1)/nu,j/nv),c=pt((i+1)/nu,(j+1)/nv),d=pt(i/nu,(j+1)/nv);
+   this.triS(a.p,b.p,c.p,a.n,b.n,c.n,col);this.triS(a.p,c.p,d.p,a.n,c.n,d.n,col);}}
+ /* tapered tube along Z: profile is [[z, radius], ...], smooth side normals */
+ tubeZ(profile,col,seg=18){
+  const rings=profile.map(([z,r])=>{const ring=[];for(let i=0;i<=seg;i++){const th=i/seg*Math.PI*2;
+   ring.push({p:[Math.cos(th)*r,Math.sin(th)*r,z],n:[Math.cos(th),Math.sin(th),0]});}return ring;});
+  for(let k=0;k<rings.length-1;k++){const A=rings[k],B=rings[k+1];
+   for(let i=0;i<seg;i++){this.triS(A[i].p,B[i].p,B[i+1].p,A[i].n,B[i].n,B[i+1].n,col);
+    this.triS(A[i].p,B[i+1].p,A[i+1].p,A[i].n,B[i+1].n,A[i+1].n,col);}}
+  // rounded end caps
+  const f=profile[0],l=profile[profile.length-1];
+  this.ellipsoid(0,0,f[0],f[1],f[1],f[1]*0.6,col,12,6);
+  this.ellipsoid(0,0,l[0],l[1],l[1],l[1]*0.6,col,12,6);}
+ /* smooth vertical cylinder with rounded top dome, at (cx, cz) */
+ cylY(cx,cy0,cy1,r,col,seg=20,cz=0){
+  for(let i=0;i<seg;i++){const t0=i/seg*Math.PI*2,t1=(i+1)/seg*Math.PI*2;
+   const a=[cx+Math.cos(t0)*r,cy0,cz+Math.sin(t0)*r],b=[cx+Math.cos(t1)*r,cy0,cz+Math.sin(t1)*r];
+   const c=[cx+Math.cos(t1)*r,cy1,cz+Math.sin(t1)*r],d=[cx+Math.cos(t0)*r,cy1,cz+Math.sin(t0)*r];
+   const na=[Math.cos(t0),0,Math.sin(t0)],nb=[Math.cos(t1),0,Math.sin(t1)];
+   this.triS(a,b,c,na,nb,nb,col);this.triS(a,c,d,na,nb,na,col);}
+  this.ellipsoid(cx,cy1,cz,r,r*0.55,r,col,seg,6);}
+ /* smooth cone: rounded mountain, many segments */
+ coneY(cx,cy,cz,r,h,col,seg=24){
+  for(let i=0;i<seg;i++){const t0=i/seg*Math.PI*2,t1=(i+1)/seg*Math.PI*2;
+   const a=[cx+Math.cos(t0)*r,cy,cz+Math.sin(t0)*r],b=[cx+Math.cos(t1)*r,cy,cz+Math.sin(t1)*r];
+   const tip=[cx,cy+h,cz];
+   const na=[Math.cos(t0)*0.9,0.45,Math.sin(t0)*0.9],nb=[Math.cos(t1)*0.9,0.45,Math.sin(t1)*0.9];
+   const nt=[0,1,0]; this.triS(a,tip,b,na,nt,nb,col);}}
+ build(){const a=new Float32Array(this.d);const vao=gl.createVertexArray();gl.bindVertexArray(vao);
+  const vbo=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vbo);gl.bufferData(gl.ARRAY_BUFFER,a,gl.STATIC_DRAW);
+  const st=9*4;gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,st,0);
+  gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,3,gl.FLOAT,false,st,12);
+  gl.enableVertexAttribArray(2);gl.vertexAttribPointer(2,3,gl.FLOAT,false,st,24);
+  this.vao=vao;this.n=a.length/9;}}
+/* terrain height: island with mountains north-east, flat airbase centre */
+function terrainH(x,z){const d=Math.hypot(x,z);const base=Math.max(0,1-d/1400);
+ let h=base*base*38*Math.sin(x*0.004+1.7)*Math.cos(z*0.003-0.6)+base*22;
+ h+=Math.max(0,1-Math.hypot(x-900,z+500)/420)*160; // snowy peaks NE
+ h+=Math.max(0,1-Math.hypot(x+700,z-600)/380)*90;
+ if(Math.abs(x)<520&&Math.abs(z)<260)h=Math.min(h,2.2); // airbase plateau
+ return Math.max(0,h);}
+function terrainN(x,z){const e=8;const dx=(terrainH(x+e,z)-terrainH(x-e,z))/(2*e),dz=(terrainH(x,z+e)-terrainH(x,z-e))/(2*e);
+ let n=[-dx,1,-dz];const l=Math.hypot(n[0],n[1],n[2])||1;return [n[0]/l,n[1]/l,n[2]/l];}
+function buildWorld(){
+ const m=new Mesh();
+ // sea: one smooth flat plane, not a box
+ m.planeY(0,-0.6,0,5200,5200,[0.10,0.38,0.58]);
+ // soft rounded clouds: clusters of overlapping ellipsoids, high up, smooth edges
+ const cloudCol=[0.97,0.98,1.0];
+ const clouds=[[-900,720,-800],[300,780,900],[1100,700,-200],[-300,820,400],[900,760,700],[-1200,700,300],[0,850,-1100],[1400,720,500]];
+ for(const c of clouds){m.ellipsoid(c[0],c[1],c[2],150,55,85,cloudCol,16,10);
+  m.ellipsoid(c[0]-110,c[1]-6,c[2]+30,95,42,58,cloudCol,14,8);
+  m.ellipsoid(c[0]+120,c[1]-4,c[2]-20,105,45,62,cloudCol,14,8);}
+ // island terrain grid — smooth normals from the height gradient, so hills shade continuously
+ const N=48,S=2900/48;
+ for(let i=0;i<N;i++)for(let j=0;j<N;j++){const x0=-1450+i*S,z0=-1450+j*S;
+  const h00=terrainH(x0,z0),h10=terrainH(x0+S,z0),h01=terrainH(x0,z0+S),h11=terrainH(x0+S,z0+S);
+  const g=clamp(h00/120,0,1);
+  const v=0.5+0.5*Math.sin(x0*0.004+z0*0.003); // slow, large-scale colour variation — no checkerboard
+  const col=[0.20+g*0.3+v*0.04,0.48-g*0.08+v*0.07,0.22+g*0.12];
+  if(h00<1.5&&h10<1.5&&h01<1.5&&h11<1.5)continue;
+  const n00=terrainN(x0,z0),n10=terrainN(x0+S,z0),n01=terrainN(x0,z0+S),n11=terrainN(x0+S,z0+S);
+  m.triS([x0,h00,z0],[x0+S,h10,z0],[x0+S,h11,z0+S],n00,n10,n11,col);
+  m.triS([x0,h00,z0],[x0+S,h11,z0+S],[x0,h01,z0+S],n00,n11,n01,col);}
+ // beach: thin smooth sand disc at the shoreline — kept BELOW the runway
+ // (ry 0.8, top y=1.1) so it can never cover the runway plane at y=2.15
+ m.ellipsoid(0,0.3,0,1400,0.8,1400,[0.85,0.78,0.55],32,6);
+ // runway 09/27: smooth asphalt plane + thin painted markings, no box edges.
+ // The airbase terrain plateau is 2.2 m, so the runway sits at 2.35 m —
+ // above the terrain, otherwise the strip is buried and invisible.
+ m.planeY(0,RWY.y+0.2,0,900,46,[0.20,0.20,0.23]);
+ for(let i=0;i<12;i++)m.planeY(-420+i*76,RWY.y+0.28,0,34,4,[0.92,0.92,0.88]);
+ m.planeY(-450,RWY.y+0.28,0,6,46,[0.92,0.72,0.20]);
+ m.planeY(0,RWY.y+0.25,0,900,2,[0.85,0.85,0.8]);
+ // taxiway + apron: smooth planes, also above the plateau
+ m.planeY(0,RWY.y+0.17,80,700,20,[0.17,0.17,0.19]);
+ // hangars: smooth domes; tower: smooth cylinder + dome
+ m.ellipsoid(-200,2,130,32,9,22,[0.52,0.57,0.62],20,8);
+ m.ellipsoid(-120,2,130,32,9,22,[0.47,0.52,0.57],20,8);
+ m.cylY(120,2,40,7,[0.72,0.77,0.82],20,120); m.ellipsoid(120,42,120,11,3,11,[0.22,0.32,0.42],16,8);
+ // downtown Metropolis: rounded towers with domed tops, varied heights
+ const city=[[760,80,180,18],[820,60,240,14],[700,110,120,20],[880,50,80,15],[640,70,260,16],[780,95,300,17]];
+ for(const c of city){m.cylY(c[0],2,2+c[1],c[3],[0.55,0.62,0.72],20,c[2]); m.ellipsoid(c[0],2+c[1],c[2],c[3],c[3]*0.5,c[3],[0.72,0.78,0.85],16,6);}
+ // west citadel town: low rounded domes
+ for(let i=0;i<8;i++)m.ellipsoid(-520+(i%4)*50,2,380+Math.floor(i/4)*50,17,8,17,[0.56,0.46,0.36],16,8);
+ // bridge over bay north: smooth curved deck + rounded pylons
+ m.planeY(420,6,-160,30,400,[0.62,0.62,0.67]);
+ m.cylY(420,0,26,4,[0.72,0.72,0.77],20,-260); m.cylY(420,0,26,4,[0.72,0.72,0.77],20,-60);
+ // mountains: smooth cones with rounded snow caps
+ m.coneY(900,0,-500,260,170,[0.55,0.6,0.55]); m.coneY(900,120,-500,95,55,[0.88,0.9,0.94]);
+ m.coneY(1050,0,-350,200,130,[0.6,0.62,0.66]); m.coneY(-700,0,-600,220,95,[0.4,0.5,0.4]);
+ m.build();return m;}
+let worldMesh=null;
+function jetMesh(col){const m=new Mesh();
+ // forward is -Z in model space. Fuselage is a smooth tapered tube,
+ // wings / fins are flattened rounded ellipsoids, canopy is a smooth dome.
+ // Nothing here is a box — every edge is curved.
+ m.tubeZ([[-9,0.06],[-7,0.55],[-4,0.95],[0,1.0],[4,0.85],[7,0.4],[7.6,0.06]],col,20);
+ m.ellipsoid(0,-0.25,0.5,6.8,0.28,2.7,[col[0]*0.85,col[1]*0.85,col[2]*0.85],20,8); // main wing, rounded tip
+ m.ellipsoid(0,0.25,5.5,2.8,0.22,1.6,col,16,8); // tailplane
+ m.ellipsoid(0,1.3,5.5,0.28,1.5,1.9,[col[0]*0.8,col[1]*0.8,col[2]*0.8],14,8); // vertical fin
+ m.ellipsoid(0,0.85,-2,0.65,0.55,1.9,[0.2,0.45,0.62],16,10); // canopy dome
+ m.build();return m;}
+function heliMesh(col){const m=new Mesh();
+ m.ellipsoid(0,0,0,1.3,1.1,3.8,col,18,10); // rounded body
+ m.tubeZ([[-3,0.5],[0,0.45],[5,0.25],[6.5,0.08]],col,14); // tail boom, tapered
+ m.ellipsoid(0,1.25,0,5.2,0.08,0.5,[0.18,0.18,0.22],18,6); // main rotor disc
+ m.ellipsoid(0,1.25,0,0.5,0.08,5.2,[0.18,0.18,0.22],18,6);
+ m.ellipsoid(0,0.85,-1.5,0.75,0.5,1.4,[0.2,0.45,0.62],14,8); // canopy dome
+ m.build();return m;}
+function shipMesh(){const m=new Mesh();
+ m.ellipsoid(0,0.5,0,5.2,2.2,23,[0.4,0.42,0.45],20,10); // rounded hull
+ m.ellipsoid(0,4,-8,3.2,2.4,5,[0.5,0.52,0.55],16,10); // superstructure, rounded
+ m.ellipsoid(0,2.5,10,3.5,1.6,3,[0.35,0.35,0.38],14,8);
+ m.build();return m;}
+let jetMeshes={},shipM=null,skyVao=null;
+function initGL(){if(!glOK)return;worldMesh=buildWorld();shipM=shipMesh();skyVao=gl.createVertexArray();
+ const PALETTE={valkyrie:[0.55,0.65,0.75],raptor:[0.45,0.5,0.6],tomcat:[0.7,0.65,0.55],spirit:[0.25,0.28,0.32],thunder:[0.5,0.55,0.4],blackbird:[0.15,0.16,0.2],colossus:[0.6,0.62,0.66],viper:[0.3,0.5,0.3],hokum:[0.45,0.45,0.4],blackhawk:[0.35,0.4,0.35]};
+ for(const k in JETS)jetMeshes[k]=JETS[k].heli?heliMesh(PALETTE[k]||[0.5,0.6,0.7]):jetMesh(PALETTE[k]||[0.5,0.6,0.7]);
+ gl.enable(gl.DEPTH_TEST);gl.clearColor(0.5,0.65,0.85,1);}
+initGL();
+
+/* ---------- flight model, turbulence, wind, fuel, engines ---------- */
+function applyWeather(){
+ let w=S.wx==="auto"?["clear","windy","rain","storm"][Math.floor(S.t/240)%4]:S.wx;
+ const cfg=WX[w]||WX.clear;S.turb=cfg.turb;
+ const dir=deg(300+S.t*0.2);S.wind={x:Math.cos(dir)*cfg.wind,z:Math.sin(dir)*cfg.wind};
+ S.wxCfg=cfg;return cfg;}
+function stepFlight(dt){
+ const p=S.plane,j=JETS[S.jet],cfg=S.wxCfg||WX.clear;
+ const heli=j.heli;
+ // throttle
+ if(keys.ShiftLeft||keys.ShiftRight||keys.thrUp)p.thr=clamp(p.thr+55*dt,0,100);
+ if(keys.ControlLeft||keys.ControlRight||keys.thrDn)p.thr=clamp(p.thr-55*dt,0,100);
+ // pitch / roll / yaw from keys, mouse yoke and touch
+ let pitchIn=0,rollIn=0,yawIn=0;
+ if(keys.KeyW||keys.ArrowUp||keys.pitchUp)pitchIn+=1;
+ if(keys.KeyS||keys.ArrowDown||keys.pitchDn)pitchIn-=1;
+ if(keys.KeyA||keys.ArrowLeft)rollIn-=1;
+ if(keys.KeyD||keys.ArrowRight)rollIn+=1;
+ if(keys.KeyQ)yawIn-=1; if(keys.KeyE)yawIn+=1;
+ pitchIn+=S.stickY||0; rollIn+=S.stickX||0;
+ const turnRate=(heli?1.6:1.0)*j.turn;
+ p.roll=clamp(p.roll+rollIn*90*turnRate*dt,-75,75);
+ p.roll*=Math.pow(0.4,dt); if(Math.abs(p.roll)<0.5&&!rollIn)p.roll*=0.9;
+ p.pitch=clamp(p.pitch+pitchIn*55*turnRate*dt*(heli?0.7:1),-55,55);
+ p.hdg=(p.hdg+yawIn*28*dt - p.roll*0.28*dt+360)%360;
+ // high-G turn
+ if(keys.KeyS&&keys.ControlLeft){p.hdg=(p.hdg - Math.sign(p.roll||1)*55*dt+360)%360;p.spd*=Math.pow(0.92,dt);}
+ // speed: thrust minus drag, stall behaviour
+ const maxSpd=(heli?150:520)*j.speed;
+ const target=maxSpd*p.thr/100*(p.eng2fire&&!p.eng2cut?0.55:1);
+ p.spd=lerp(p.spd,target,clamp(dt*0.35,0,1));
+ if(p.brake)p.spd=Math.max(0,p.spd-120*dt);
+ const stall=(p.flaps===2?24:p.flaps===1?29:35)*(heli?0.4:1);
+ p.stalled=p.spd<stall&&p.y>RWY.y+4;
+ // vertical speed from pitch and lift, minus gravity sink at low speed
+ const lift=Math.sin(deg(p.pitch))*p.spd*(p.stalled?0.3:1);
+ /* gravity sink applies from just above the runway, not only above RWY.y+3:
+    with the old threshold a low, level approach floated forever just
+    above the ground and could never touch down */
+ const sink=p.y>RWY.y+0.5?Math.max(0,8*(1-p.spd/400)):0;
+ p.vs=lerp(p.vs,lift-sink,clamp(dt*1.2,0,1));
+ if(p.spd<10&&p.y<=RWY.y+3)p.vs=0;
+ // turbulence: gusts vary with time and position, zero on ground
+ const air=p.y>RWY.y+3;
+ const gust=Math.sin(S.t*1.7+p.x*0.01)*Math.sin(S.t*0.9+p.z*0.013);
+ const gust2=Math.sin(S.t*2.3+p.x*0.005-p.z*0.007);
+ p.turbY=air?gust*S.turb*2.2:0; p.turbZ=air?gust2*S.turb*1.6:0;
+ p.y+= (p.vs+p.turbY)*dt*0.55;
+ const hdgR=deg(p.hdg);
+ let vx=Math.sin(hdgR)*p.spd, vz=-Math.cos(hdgR)*p.spd;
+ vx+=S.wind.x*0.35+p.turbZ; vz+=S.wind.z*0.35;
+ p.x+=vx*dt*0.55; p.z+=vz*dt*0.55;
+ // ground clamp + terrain — touchdown fires on ground contact after ever being airborne
+ const gh=terrainH(p.x,p.z);
+ const groundY=Math.max(RWY.y,gh)+1.2;
+ if(p.y>groundY+10)S.everAirborne=true;
+ if(p.y<groundY){p.y=groundY; if(S.everAirborne&&S.started)touchdown(); p.vs=0;}
+ if(p.y>2600)p.y=2600;
+ p.alt=p.y;
+ // fuel burn scales with engines running and throttle
+ const burn=(j.engines*(p.eng2cut?0.5:1))*(0.008+p.thr*0.00045)/j.fuel;
+ p.fuel=Math.max(0,p.fuel-burn*dt*10);
+ if(p.fuel<=0&&p.thr>0){p.thr=0;say("FUEL EMPTY — gliding, find the runway",3);}
+ if(p.eng2fire&&!p.eng2cut){p.hull=Math.max(0,p.hull-1.1*dt); if(Math.random()<dt*0.4)say("ENGINE 2 FIRE — cut fuel [1] then extinguisher [I]",2);}
+ if(p.eng2fire&&p.eng2cut&&!p.halon){/* fire keeps burning until Halon */}
+}
+/* ---------- navigation / FMS ---------- */
+function fms(){
+ const p=S.plane,wp=WAYPOINTS[S.wp%WAYPOINTS.length];
+ const dx=wp.x-p.x,dz=wp.z-p.z,dist=Math.hypot(dx,dz);
+ let brg=(rad(Math.atan2(dx,-dz))+360)%360;
+ let rel=((brg-p.hdg+540)%360)-180;
+ const ete=p.spd>20?dist/(p.spd*0.55):999;
+ const xtk=Math.sin(deg(rel))*dist;
+ return {wp,dist,brg,rel,ete,xtk};}
+function nextWaypoint(){S.wp=(S.wp+1)%WAYPOINTS.length;const w=WAYPOINTS[S.wp];say("FMS: next waypoint "+w.id+" — "+Math.round(fms().dist)+" m",3);}
+/* ---------- weapons: cannon, MSL, XLAA, LASM ---------- */
+let mslCd=0,gunCd=0,spwCd=0;
+function fireCannon(){
+ if(gunCd>0||!S.started)return;gunCd=0.09;beep(220,0.08);
+ const p=S.plane,h=deg(p.hdg);
+ tracers.push({x:p.x,y:p.y,z:p.z,dx:Math.sin(h),dy:Math.sin(deg(p.pitch)),dz:-Math.cos(h),life:0.5});
+ const tgt=nearestEnemy(); if(tgt&&tgt.dist<420){tgt.hp-=8*JETS[S.jet].gun; if(tgt.hp<=0)killEnemy(tgt);}}
+function nearestEnemy(){let best=null;for(const e of enemies){if(e.hp<=0)continue;const d=Math.hypot(e.x-S.plane.x,e.y-S.plane.y,e.z-S.plane.z);if(!best||d<best.dist)best={...e,dist:d,ref:e};}return best;}
+function killEnemy(t){t.ref.hp=0;S.kills++;S.score+=1000;beep(880,0.3);say("SPLASH — bandit down. Kills "+S.kills+" / 5",3);
+ if(S.op===1&&S.kills>=5){say("All bandits down — RTB, land on Runway 09",5);S.phase="rtb";}}
+function fireMissile(){
+ if(mslCd>0||S.msl<=0||!S.started)return;mslCd=0.42;S.msl--;
+ const tgt=S.lockTgt||nearestEnemy(); beep(440,0.15);
+ if(S.spw==="XLAA"){if(S.lock<1){say("XLAA — need full lock first",2);return;}let n=0;for(const e of enemies){if(e.hp>0&&n<4){const d=Math.hypot(e.x-S.plane.x,e.y-S.plane.y,e.z-S.plane.z);if(d>900)continue;e.hp-=70;n++;if(e.hp<=0)killEnemy({ref:e});}} if(n)say("XLAA — "+n+" targets hit",2); return;}
+ if(S.spw==="LASM"){const sh=ships.find(s=>s.hp>0); if(sh){sh.hp-=220; if(sh.hp<=0){S.score+=800;say("Ship sunk — LASM hit",3);}} return;}
+ if(tgt&&tgt.dist<900){tgt.ref.hp-=100; if(tgt.ref.hp<=0)killEnemy(tgt); else say("MSL hit — bandit damaged",2);}
+ else say("MSL — no lock, missile missed",2);}
+function stepMissiles(dt){for(const m of missiles){m.life-=dt;} missiles=missiles.filter(m=>m.life>0);
+ for(const t of tracers){t.x+=t.dx*900*dt;t.y+=t.dy*900*dt;t.z+=t.dz*900*dt;t.life-=dt;} tracers=tracers.filter(t=>t.life>0);}
+/* ---------- enemies and ships ---------- */
+function spawnOp1(){
+ enemies=[];ships=[];
+ const names=["GALAHAD-1","GALAHAD-2","GALAHAD-3","VIPER-1","VIPER-2"];
+ for(let i=0;i<5;i++){enemies.push({name:names[i],x:rand(-600,800),y:rand(120,420),z:rand(-600,600),hdg:rand(0,360),hp:160,spd:rand(180,260),kind:i<3?"ACE":"HELI"});}
+ ships.push({x:300,y:0,z:-500,hp:220,name:"AEGIS CRUISER"},{x:-350,y:0,z:480,hp:220,name:"STEALTH FRIGATE"});
+ rings=[];for(let i=0;i<6;i++)rings.push({x:rand(-600,700),y:rand(150,350),z:rand(-500,500),hit:false});}
+function stepEnemies(dt){
+ const p=S.plane;
+ for(const e of enemies){if(e.hp<=0)continue;
+  const dx=p.x-e.x,dz=p.z-e.z,d=Math.hypot(dx,dz);
+  const want=Math.atan2(dx,-dz); let dh=((rad(want)-e.hdg+540)%360)-180;
+  e.hdg=(e.hdg+clamp(dh,-60,60)*dt+360)%360;
+  e.x+=Math.sin(deg(e.hdg))*e.spd*dt*0.55; e.z+=-Math.cos(deg(e.hdg))*e.spd*dt*0.55;
+  e.y=clamp(e.y+Math.sin(S.t+e.x*0.01)*12*dt,80,500);
+  if(d<500&&Math.random()<dt*0.08){p.hull=Math.max(0,p.hull-2);say("Valkyrie-1 took a hit! Evade and deploy flares [X]",2);beep(160,0.2); if(p.hull<=0)crash("Shot down by "+e.name);}}
+ // lock-on progress on nearest bandit ahead
+ const tgt=nearestEnemy();
+ if(tgt&&tgt.dist<800){S.lock=clamp(S.lock+dt*0.9,0,1);S.lockTgt=tgt;}else{S.lock=Math.max(0,S.lock-dt);S.lockTgt=null;}
+}
+/* ---------- ILS / PAPI and landing grading ---------- */
+function ils(){
+ const p=S.plane;
+ // runway threshold at x=-450, approach from west heading 90 (east)
+ const distToTdz=Math.hypot(p.x+450,p.z);
+ const idealH=RWY.y+distToTdz*0.058; // about 3.3 degrees
+ const dev=p.y-idealH;
+ const centre=Math.abs(p.z-RWY.z);
+ const lights=dev>18?4:dev>6?3:dev>-6?2:dev>-18?1:0; // 4 white = high, 0 white = low
+ return {dist:distToTdz,idealH,dev,centre,lights};}
+function touchdown(){
+ const p=S.plane,il=ils();
+ if(S.graded||!S.started)return;
+ const onRwy=Math.abs(p.x)<460&&Math.abs(p.z)<24;
+ if(!onRwy){crash("Off-runway touchdown — hull lost");return;}
+ const vsi=Math.abs(p.vs);
+ const pitchBad=p.pitch<-15;
+ if(pitchBad||vsi>16){crash("Hard impact — VSI too high on touchdown");return;}
+ const grade=vsi<=3&&il.centre<=8?"S — BUTTER":vsi<=6&&il.centre<=14?"A — SMOOTH":vsi<=10&&il.centre<=20?"B — FIRM":"C — HARD";
+ S.graded=true;S.landed=true;S.grade=grade;
+ S.score+=grade.startsWith("S")?2000:grade.startsWith("A")?1200:600;
+ debrief("LANDING GRADED "+grade,
+  "Touchdown speed "+Math.round(p.spd)+" kt\nSink rate "+Math.round(vsi*100)+" fpm\nCentreline error "+Math.round(il.centre)+" m\nFuel remaining "+Math.round(p.fuel)+"%\nHull "+Math.round(p.hull)+"%\nScore "+S.score+"\n\n"+(S.op===2?"Engine-fire emergency landing complete.":"Runway 09 recovery complete."));}
+function crash(why){if(S.graded)return;S.graded=true;debrief("AIRCRAFT LOST",""+why+"\n\nHull "+Math.round(S.plane.hull)+"%\nFuel "+Math.round(S.plane.fuel)+"%\nScore "+S.score+"\n\nPress FLY AGAIN to respawn on Runway 09.");beep(90,0.5);}
+function debrief(title,text){$("dbTitle").textContent=title;$("dbText").textContent=text;$("debrief").style.display="flex";S.paused=true;}
+
+/* ---------- HUD (2D canvas, own layout) ---------- */
+function drawHUD(){
+ const w=hudc.width,h=hudc.height,d=Math.min(devicePixelRatio||1,2);
+ hx.clearRect(0,0,w,h); hx.save(); hx.scale(d,d);
+ const W=w/d,H=h/d, p=S.plane, j=JETS[S.jet];
+ hx.font="12px Consolas"; hx.textAlign="left";
+ // top bar
+ hx.fillStyle="rgba(4,16,28,.72)"; hx.fillRect(0,0,W,34);
+ hx.fillStyle="#7ee7ff"; hx.fillText("VALKYRIE ZERO  //  OP 0"+S.op+"  //  "+(S.wxCfg?S.wxCfg.label:""),10,21);
+ hx.fillStyle="#ffd75e"; hx.textAlign="right"; hx.fillText("SCORE "+S.score+"   KILLS "+S.kills+"/5   "+String(Math.floor(S.clock)).padStart(2,"0")+":"+String(Math.floor((S.clock%1)*60)).padStart(2,"0"),W-10,21);
+ hx.textAlign="left";
+ // cockpit frame (camera 1 only), drawn early so HUD text sits on top of it
+ if(S.cam===1){hx.fillStyle="rgba(8,14,22,.92)"; hx.fillRect(0,H-64,W,64);
+  hx.fillStyle="#0e2a3a"; hx.fillRect(0,0,10,H); hx.fillRect(W-10,0,10,H);
+  hx.strokeStyle="rgba(126,231,255,.5)"; hx.beginPath(); hx.moveTo(10,0); hx.lineTo(110,110); hx.moveTo(W-10,0); hx.lineTo(W-110,110); hx.stroke();
+  hx.fillStyle="#22ff88"; hx.font="bold 12px Consolas"; hx.fillText("COCKPIT  //  "+j.name,W/2-70,H-24);}
+ // left tapes
+ hx.fillStyle="rgba(4,16,28,.65)"; hx.fillRect(10,50,150,150);
+ hx.fillStyle="#fff"; hx.font="bold 20px Consolas";
+ hx.fillText("SPD "+Math.round(p.spd)+" kt",18,78); hx.fillText("ALT "+Math.round(p.alt*3.28)+" ft",18,106);
+ hx.font="13px Consolas"; hx.fillStyle="#9fe8ff";
+ hx.fillText("V/S "+Math.round(p.vs*196)+" fpm",18,130);
+ hx.fillText("HDG "+String(Math.round(p.hdg)).padStart(3,"0")+"°",18,150);
+ hx.fillText("THR "+Math.round(p.thr)+"%",18,170);
+ hx.fillText(p.stalled?"!! STALL !!":p.spd>480?"OVERSPEED":"",18,190);
+ // centre attitude / lock
+ const cx=W/2,cy=H/2;
+ hx.strokeStyle="#7ee7ff"; hx.lineWidth=2; hx.beginPath(); hx.moveTo(cx-40,cy); hx.lineTo(cx-12,cy); hx.moveTo(cx+12,cy); hx.lineTo(cx+40,cy); hx.stroke();
+ hx.save(); hx.translate(cx,cy); hx.rotate(deg(-p.roll)); hx.strokeStyle="rgba(126,231,255,.7)";
+ hx.beginPath(); hx.moveTo(-70,-p.pitch*1.5); hx.lineTo(70,-p.pitch*1.5); hx.stroke(); hx.restore();
+ if(S.lockTgt){const s=40+S.lock*30; hx.strokeStyle=S.lock>=1?"#22ff88":"#ffd75e"; hx.lineWidth=2;
+  hx.strokeRect(cx-s/2,cy-s/2-30,s,s); hx.fillStyle=hx.strokeStyle;
+  hx.fillText(S.lock>=1?"LOCK — FIRE [F]":"LOCKING "+Math.round(S.lock*100)+"%",cx-50,cy-60);}
+ // ILS + PAPI when close to runway
+ const il=ils();
+ if(il.dist<2600){hx.fillStyle="rgba(4,16,28,.65)"; hx.fillRect(W-210,50,200,120);
+  hx.fillStyle="#fff"; hx.font="bold 13px Consolas"; hx.fillText("ILS RWY 09",W-200,70);
+  hx.font="12px Consolas"; hx.fillStyle="#9fe8ff";
+  hx.fillText("DIST "+Math.round(il.dist)+" m",W-200,90);
+  hx.fillText("DEV "+(il.dev>=0?"+":"")+Math.round(il.dev)+" m",W-200,108);
+  hx.fillText("CTR "+Math.round(il.centre)+" m",W-200,126);
+  hx.fillText("PAPI:",W-200,146);
+  for(let i=0;i<4;i++){hx.fillStyle=i<il.lights?"#fff":"#ff4d4d"; hx.beginPath(); hx.arc(W-150+i*18,142,6,0,7); hx.fill();}
+  // glide needle
+  hx.strokeStyle="#ffd75e"; hx.beginPath(); hx.moveTo(W-110,92-clamp(il.dev,-30,30)); hx.lineTo(W-90,92-clamp(il.dev,-30,30)); hx.stroke();}
+ // FMS box — lifted 64 px in cockpit view so it never overlaps the cockpit panel
+ const f=fms(); const lift=S.cam===1?64:0;
+ hx.fillStyle="rgba(4,16,28,.65)"; hx.fillRect(10,H-118-lift,220,108);
+ hx.fillStyle="#7ee7ff"; hx.font="bold 12px Consolas"; hx.fillText("FMS / NAV",18,H-100-lift);
+ hx.font="12px Consolas"; hx.fillStyle="#dff3ff";
+ hx.fillText("WPT "+f.wp.id+"  BRG "+String(Math.round(f.brg)).padStart(3,"0"),18,H-82-lift);
+ hx.fillText("DIST "+Math.round(f.dist)+" m  ETE "+(f.ete>900?"--":Math.round(f.ete)+" s"),18,H-64-lift);
+ hx.fillText("XTK "+Math.round(f.xtk)+" m",18,H-46-lift);
+ hx.fillText("FUEL "+Math.round(p.fuel)+"%  HULL "+Math.round(p.hull)+"%",18,H-28-lift);
+ hx.fillText("MSL "+S.msl+"  "+S.spw+"  FLR "+S.flares,18,H-12-lift);
+ // fuel / engine warnings
+ if(p.eng2fire){hx.fillStyle=p.eng2cut?"#ffd75e":"#ff4d4d"; hx.font="bold 14px Consolas";
+  /* y=180: below the top bar / ILS box, clear of every HUD panel at PC widths */
+  hx.fillText(p.eng2cut?"ENG2 FIRE — USE HALON [I]":"!! ENGINE 2 FIRE — CUT FUEL [1] !!",W/2-180,180);}
+ if(p.fuel<20){hx.fillStyle="#ff4d4d"; hx.fillText("LOW FUEL "+Math.round(p.fuel)+"%",W/2-60,110);} /* y=110: below the two-line #msg banner, no overlap */
+ // radar minimap — lifted with the FMS box in cockpit view
+ const rx=W-90,ry=H-90-lift,r=62;
+ hx.fillStyle="rgba(4,16,28,.7)"; hx.beginPath(); hx.arc(rx,ry,r,0,7); hx.fill();
+ hx.strokeStyle="#2fb9e8"; hx.stroke();
+ hx.fillStyle="#22ff88"; hx.beginPath(); hx.arc(rx,ry,4,0,7); hx.fill();
+ const sc=r/1400;
+ for(const e of enemies){if(e.hp<=0)continue; hx.fillStyle="#ff4d4d"; hx.beginPath(); hx.arc(rx+(e.x-p.x)*sc,ry+(e.z-p.z)*sc,3,0,7); hx.fill();}
+ hx.fillStyle="#ffd75e"; hx.beginPath(); hx.arc(rx+(RWY.x-p.x)*sc,ry+(RWY.z-p.z)*sc,3,0,7); hx.fill();
+ hx.fillStyle="#7ee7ff"; hx.beginPath(); hx.arc(rx+(f.wp.x-p.x)*sc,ry+(f.wp.z-p.z)*sc,3,0,7); hx.fill();
+ hx.restore();}
+/* ---------- 3D render ---------- */
+function render(){
+ if(!glOK)return;
+ gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+ const p=S.plane;
+ // sky colours by time of day
+ const tod={morning:[0.45,0.68,0.9,0.75,0.85,0.95],noon:[0.25,0.55,0.9,0.65,0.82,0.95],dusk:[0.95,0.45,0.25,0.85,0.55,0.45],night:[0.02,0.05,0.14,0.08,0.12,0.25]}[S.time]||[0.45,0.68,0.9,0.75,0.85,0.95];
+ const night=S.time==="night"?1:S.time==="dusk"?0.4:0;
+ // camera
+ const hdgR=deg(p.hdg), pr=deg(p.pitch);
+ const fwd=[Math.sin(hdgR)*Math.cos(pr),Math.sin(pr),-Math.cos(hdgR)*Math.cos(pr)];
+ let eye, tgt;
+ if(S.cam===1){eye=[p.x,p.y+1.2,p.z]; tgt=[p.x+fwd[0]*100,p.y+fwd[1]*100,p.z+fwd[2]*100];}
+ else if(S.cam===2){const a=S.t*0.15; eye=[p.x+Math.cos(a)*90,p.y+45,p.z+Math.sin(a)*90]; tgt=[p.x,p.y,p.z];}
+ else{eye=[p.x-fwd[0]*34,p.y-fwd[1]*34+8,p.z-fwd[2]*34]; tgt=[p.x+fwd[0]*60,p.y+fwd[1]*60,p.z+fwd[2]*60];}
+ const view=mLook(eye,tgt,[0,1,0]);
+ const proj=mPersp(deg(62),glc.width/glc.height,0.5,6000);
+ // sky
+ gl.disable(gl.DEPTH_TEST); gl.bindVertexArray(skyVao); gl.useProgram(PS);
+ gl.uniform3f(gl.getUniformLocation(PS,"uZen"),tod[0],tod[1],tod[2]);
+ gl.uniform3f(gl.getUniformLocation(PS,"uHor"),tod[3],tod[4],tod[5]);
+ gl.uniform3f(gl.getUniformLocation(PS,"uSunC"),1,0.9,0.6);
+ gl.uniform3f(gl.getUniformLocation(PS,"uSunDir"),0.5,0.6,-0.4);
+ gl.uniform1f(gl.getUniformLocation(PS,"uFlash"),S.flash);
+ gl.uniform1f(gl.getUniformLocation(PS,"uNight"),night);
+ gl.drawArrays(gl.TRIANGLES,0,3); gl.enable(gl.DEPTH_TEST);
+ // world
+ gl.useProgram(P);
+ gl.uniformMatrix4fv(gl.getUniformLocation(P,"uProj"),false,proj);
+ gl.uniformMatrix4fv(gl.getUniformLocation(P,"uView"),false,view);
+ gl.uniform3f(gl.getUniformLocation(P,"uCam"),eye[0],eye[1],eye[2]);
+ gl.uniform3f(gl.getUniformLocation(P,"uSun"),0.5,0.8,-0.3);
+ gl.uniform1f(gl.getUniformLocation(P,"uFog"),(S.wxCfg?1-S.wxCfg.vis:0)*2+0.2);
+ gl.uniform1f(gl.getUniformLocation(P,"uTime"),S.t);
+ const draw=(mesh,model)=>{gl.uniformMatrix4fv(gl.getUniformLocation(P,"uModel"),false,model);
+  gl.bindVertexArray(mesh.vao); gl.drawArrays(gl.TRIANGLES,0,mesh.n);};
+ draw(worldMesh,mI());
+ // player jet (not in cockpit view)
+ if(S.cam!==1){let m=mTrans(p.x,p.y,p.z); m=mMul(m,mRotY(deg(p.hdg))); m=mMul(m,mRotX(deg(p.pitch))); m=mMul(m,mRotZ(deg(p.roll))); draw(jetMeshes[S.jet],m);}
+ for(const e of enemies){if(e.hp<=0)continue;let m=mTrans(e.x,e.y,e.z);m=mMul(m,mRotY(deg(e.hdg)));draw(jetMeshes.valkyrie,m);}
+ for(const s of ships){if(s.hp<=0)continue;draw(shipM,mTrans(s.x,1,s.z));}
+ /* waypoint rings are HUD markers only — no 3D prop, so they cannot be mistaken for aircraft */
+ // rain streaks as HUD lines
+ if(S.wxCfg&&S.wxCfg.rain){hx.save();hx.strokeStyle="rgba(180,210,255,.35)";for(let i=0;i<40;i++){const x=(i*97+S.t*300)%innerWidth,y=(i*173+S.t*500)%innerHeight;hx.beginPath();hx.moveTo(x,y);hx.lineTo(x-6,y+18);hx.stroke();}hx.restore();}
+}
+/* ---------- input ---------- */
+addEventListener("keydown",e=>{
+ keys[e.code]=true;
+ if(e.code==="KeyG"){const p=S.plane; if(p.spd>250){say("GEAR OVERSPEED — slow below 250 kt",2);}else{p.gear=!p.gear;say(p.gear?"Gear down":"Gear up",2);}}
+ if(e.code==="BracketLeft"||e.code==="BracketRight"||e.code==="KeyN"){const p=S.plane;p.flaps=(p.flaps+1)%3;say("Flaps "+(p.flaps===0?"0°":p.flaps===1?"15°":"30°"),2);}
+ if(e.code==="KeyB")S.plane.brake=true;
+ if(e.code==="KeyR")say("Thrust reverser armed",2);
+ if(e.code==="KeyC"){S.cam=(S.cam+1)%3;say(["Chase camera","Cockpit camera","Orbit camera"][S.cam],2);}
+ if(e.code==="KeyV"){S.spw=S.spw==="XLAA"?"LASM":S.spw==="LASM"?"MSL":"XLAA";say("Special weapon: "+S.spw,2);}
+ if(e.code==="KeyT")nextWaypoint();
+ if(e.code==="KeyX"&&S.flares>0){S.flares-=5;say("Flares deployed",2);beep(600,0.2);}
+ if(e.code==="Space"){e.preventDefault();fireCannon();}
+ if(e.code==="KeyF")fireMissile();
+ if(e.code==="Digit1"){S.plane.eng2cut=true;say("Engine 2 fuel cut — fire should die with Halon [I]",3);}
+ if(e.code==="KeyI"&&S.plane.eng2fire){S.plane.halon=true;S.plane.eng2fire=false;say("Halon discharged — engine 2 fire out",3);beep(700,0.3);}
+ if(e.code==="KeyK"&&S.op===2){S.plane.eng2fire=true;say("Emergency failure triggered",2);}
+ if(e.code==="KeyP"){S.paused=!S.paused;say(S.paused?"Paused":"Resumed",2);}
+ if(e.code==="Escape"){$("menu").classList.remove("hide");S.paused=true;}
+});
+addEventListener("keyup",e=>{keys[e.code]=false; if(e.code==="KeyB")S.plane.brake=false;});
+addEventListener("mousedown",e=>{if(S.started&&!S.paused&&e.target===glc)fireCannon();});
+/* mouse yoke: pointer position steers pitch (up = nose up) and roll, like a stick */
+addEventListener("mousemove",e=>{if(!S.started||S.paused)return;
+ S.stickX=clamp((e.clientX-innerWidth/2)/(innerWidth/2),-1,1)*0.7;
+ S.stickY=clamp(-(e.clientY-innerHeight/2)/(innerHeight/2),-1,1)*0.7;});
+document.querySelectorAll(".tbtn").forEach(b=>{
+ const k=b.dataset.k;
+ const on=e=>{e.preventDefault();keys[k]=true;
+  if(k==="gear"){$("menu");const p=S.plane;p.gear=!p.gear;}
+  if(k==="flaps"){const p=S.plane;p.flaps=(p.flaps+1)%3;}
+  if(k==="cam")S.cam=(S.cam+1)%3;
+  if(k==="fire")fireCannon(); if(k==="msl")fireMissile();};
+ const off=()=>{keys[k]=false;};
+ b.addEventListener("pointerdown",on); b.addEventListener("pointerup",off); b.addEventListener("pointerleave",off);});
+/* PC-first: touch buttons only on small touch screens, never on desktop */
+if(navigator.maxTouchPoints>0&&innerWidth<900)$("touch").style.display="flex";
+/* ---------- launch / reset ---------- */
+function launch(){
+ S.jet=$("selJet").value; S.op=parseInt($("selOp").value,10);
+ S.wx=$("selWx").value; S.time=$("selTime").value;
+ const j=JETS[S.jet], p=S.plane;
+ Object.assign(p,{x:-400,y:RWY.y+1.2,z:0,hdg:90,pitch:0,roll:0,spd:0,thr:0,vs:0,fuel:92,hull:j.hp,gear:false,flaps:0,brake:false,eng2fire:false,eng2cut:false,halon:false});
+ S.started=true;S.paused=false;S.score=0;S.kills=0;S.lock=0;S.msl=j.msl;S.flares=200;S.wp=0;S.landed=false;S.graded=false;S.phase="fly";S.everAirborne=false;
+ S.clock=S.time==="morning"?9:S.time==="noon"?12:S.time==="dusk"?18:22;
+ $("menu").classList.add("hide");$("debrief").style.display="none";
+ audioInit();
+ if(S.op===1){spawnOp1();say("Valkyrie-1, Runway 09 cleared for takeoff — Galahad Squadron inbound",5);}
+ if(S.op===2){Object.assign(p,{x:-1900,y:380,z:0,hdg:90,spd:220,thr:68,fuel:14,eng2fire:true,flaps:1,gear:true});
+  enemies=[];ships=[];say("EMERGENCY: Engine 2 on fire, fuel 14% — cut fuel [1], Halon [I], land Runway 09 ILS 3.3°",6);}
+ if(S.op===3){enemies=[];ships=[];say("Valkyrie-1, Runway 09 cleared for city tour — no enemies, follow FMS waypoints",5);}
+}
+$("btnLaunch").addEventListener("click",launch);
+$("btnAgain").addEventListener("click",()=>{$("debrief").style.display="none";$("menu").classList.remove("hide");S.paused=false;});
+/* ---------- main loop ---------- */
+let last=performance.now();
+function loop(now){
+ const dt=Math.min(0.05,(now-last)/1000||0.016); last=now;
+ if(S.started&&!S.paused){
+  S.t+=dt; S.clock=(S.clock+dt*0.04)%24;
+  applyWeather();
+  if(S.wxCfg&&S.wxCfg.label==="Thunderstorm"&&Math.random()<dt*0.2){S.flash=1;S.lightning=1;}
+  S.flash=Math.max(0,S.flash-dt*3);
+  if(S.msgT>0)S.msgT-=dt; else $("msg").textContent="";
+  mslCd=Math.max(0,mslCd-dt); gunCd=Math.max(0,gunCd-dt);
+  stepFlight(dt); stepEnemies(dt); stepMissiles(dt);
+  if(keys.Space)fireCannon(); if(keys.KeyF)fireMissile();
+  // waypoint ring pass
+  const f=fms(); if(f.dist<90){S.score+=200; say("Waypoint "+f.wp.id+" reached +200",2); nextWaypoint();}
+  audioTick();
+ }
+ render(); drawHUD();
+ requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+/* test hooks: auto-launch from query string for screenshots */
+window.__museGame={state:S,launch,ils,fms,terrainH,JETS};
+const q=new URLSearchParams(location.search);
+if(q.get("autolaunch")){const op=q.get("op")||"1";$("selOp").value=op;$("selJet").value=q.get("jet")||"valkyrie";$("selWx").value=q.get("wx")||"clear";$("selTime").value=q.get("time")||"morning";launch();
+ if(q.get("cam"))S.cam=parseInt(q.get("cam"),10);
+ if(q.get("air")){S.plane.y=420;S.plane.spd=260;S.plane.thr=75;S.plane.x=200;S.plane.z=100;}
+ setTimeout(()=>{if(q.get("air")){S.plane.y=420;S.plane.spd=260;}},800);}
+</script>
+</body>
+</html>
